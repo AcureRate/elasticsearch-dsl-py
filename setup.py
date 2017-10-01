@@ -29,14 +29,14 @@ if sys.version_info[:2] == (2, 6):
     tests_require.append('unittest2')
 
 setup(
-    name = "elasticsearch-dsl",
-    description = "Python client for Elasticsearch",
+    name = "elasticsearch-dsl-async-ar",
+    description = "Async Python client for Elasticsearch. An async version of elasticsearch-dsl ",
     license="Apache License, Version 2.0",
-    url = "https://github.com/elasticsearch/elasticsearch-dsl-py",
+    url = "https://github.com/AcureRate/elasticsearch-dsl-py",
     long_description = long_description,
     version = __versionstr__,
-    author = "Honza Král",
-    author_email = "honza.kral@gmail.com",
+    author = "Honza Král. Edited by AcureRate",
+    author_email = "rony.tesler@acurerate.com",
     packages=find_packages(
         where='.',
         exclude=('test_elasticsearch_dsl*', )
