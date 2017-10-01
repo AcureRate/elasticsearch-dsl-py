@@ -98,7 +98,7 @@ async def test_multiple_indices_with_same_doc_type_work(write_client):
 
     for i in (i1, i2):
         i.doc_type(Post)
-        i.create()
+        await i.create()
 
     for i in ('test-index-1', 'test-index-2'):
         settings = await write_client.indices.get_settings(index=i)

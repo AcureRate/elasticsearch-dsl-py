@@ -53,7 +53,7 @@ async def test_top_hits_are_wrapped_in_response(data_client):
     hits = [h for h in top_commits]
     assert 5 == len(hits)
     hit = await hits[0]
-    assert isinstance(await hits[0], Commit)
+    assert isinstance(hit, Commit)
 
 
 async def test_inner_hits_are_wrapped_in_response(data_client):
