@@ -93,11 +93,11 @@ class DocTypeOptions(object):
     def resolve_field(self, field_path):
         return self.mapping.resolve_field(field_path)
 
-    def init(self, index=None, using=None):
-        self.mapping.save(index or self.index, using=using or self.using)
+    async def init(self, index=None, using=None):
+        await self.mapping.save(index or self.index, using=using or self.using)
 
-    def refresh(self, index=None, using=None):
-        self.mapping.update_from_es(index or self.index, using=using or self.using)
+    async def refresh(self, index=None, using=None):
+        await self.mapping.update_from_es(index or self.index, using=using or self.using)
 
 
 @add_metaclass(DocTypeMeta)
@@ -143,11 +143,11 @@ class DocType(ObjectBase):
         return super(DocType, self).__setattr__(name, value)
 
     @classmethod
-    def init(cls, index=None, using=None):
+    async def init(cls, index=None, using=None):
         """
         Create the index and populate the mappings in elasticsearch.
         """
-        cls._doc_type.init(index, using)
+        await cls._doc_type.init(index, using)
 
     @classmethod
     def search(cls, using=None, index=None):
@@ -162,7 +162,7 @@ class DocType(ObjectBase):
         )
 
     @classmethod
-    def get(cls, id, using=None, index=None, **kwargs):
+    async def get(cls, id, using=None, index=None, **kwargs):
         """
         Retrieve a single document from elasticsearch using it's ``id``.
 
@@ -175,7 +175,7 @@ class DocType(ObjectBase):
         ``Elasticsearch.get`` unchanged.
         """
         es = connections.get_connection(using or cls._doc_type.using)
-        doc = es.get(
+        doc = await es.get(
             index=index or cls._doc_type.index,
             doc_type=cls._doc_type.name,
             id=id,
@@ -183,10 +183,10 @@ class DocType(ObjectBase):
         )
         if not doc['found']:
             return None
-        return cls.from_es(doc)
+        return await cls.from_es(doc)
 
     @classmethod
-    def mget(cls, docs, using=None, index=None, raise_on_error=True,
+    async def mget(cls, docs, using=None, index=None, raise_on_error=True,
              missing='none', **kwargs):
         """
         Retrieve multiple document by their ``id``\s. Returns a list of instances
@@ -214,7 +214,7 @@ class DocType(ObjectBase):
                 for doc in docs
             ]
         }
-        results = es.mget(
+        results = await es.mget(
             body,
             index=index or cls._doc_type.index,
             doc_type=cls._doc_type.name,
@@ -229,7 +229,7 @@ class DocType(ObjectBase):
                     # expensive call to cls.from_es().
                     continue
 
-                objs.append(cls.from_es(doc))
+                objs.append(await cls.from_es(doc))
 
             elif doc.get('error'):
                 if raise_on_error:
@@ -255,7 +255,7 @@ class DocType(ObjectBase):
         return objs
 
     @classmethod
-    def from_es(cls, hit):
+    async def from_es(cls, hit):
         """
         Helper method to construct an instance from a dictionary returned by
         elasticsearch.
@@ -267,7 +267,7 @@ class DocType(ObjectBase):
         if 'fields' in meta:
             for k, v in iteritems(meta.pop('fields')):
                 if k == '_source':
-                    doc.update(v)
+                    await doc.update(v)
                 if k.startswith('_') and k[1:] in META_FIELDS:
                     meta[k] = v
                 else:
@@ -286,7 +286,7 @@ class DocType(ObjectBase):
             raise ValidationException('No index')
         return index
 
-    def delete(self, using=None, index=None, **kwargs):
+    async def delete(self, using=None, index=None, **kwargs):
         """
         Delete the instance in elasticsearch.
 
@@ -305,7 +305,7 @@ class DocType(ObjectBase):
             if k in self.meta
         )
         doc_meta.update(kwargs)
-        es.delete(
+        await es.delete(
             index=self._get_index(index),
             doc_type=self._doc_type.name,
             **doc_meta
@@ -340,7 +340,7 @@ class DocType(ObjectBase):
         meta['_source'] = d
         return meta
 
-    def update(self, using=None, index=None,  detect_noop=True, doc_as_upsert=False, **fields):
+    async def update(self, using=None, index=None,  detect_noop=True, doc_as_upsert=False, **fields):
         """
         Partial update of the document, specify fields you wish to update and
         both the instance and the document in elasticsearch will be updated::
@@ -386,7 +386,7 @@ class DocType(ObjectBase):
             'detect_noop': detect_noop,
         }
 
-        meta = es.update(
+        meta = await es.update(
             index=self._get_index(index),
             doc_type=self._doc_type.name,
             body=body,
@@ -397,7 +397,7 @@ class DocType(ObjectBase):
             if '_' + k in meta:
                 setattr(self.meta, k, meta['_' + k])
 
-    def save(self, using=None, index=None, validate=True, **kwargs):
+    async def save(self, using=None, index=None, validate=True, **kwargs):
         """
         Save the document into elasticsearch. If the document doesn't exist it
         is created, it is overwritten otherwise. Returns ``True`` if this
@@ -422,7 +422,7 @@ class DocType(ObjectBase):
             if k in self.meta
         )
         doc_meta.update(kwargs)
-        meta = es.index(
+        meta = await es.index(
             index=self._get_index(index),
             doc_type=self._doc_type.name,
             body=self.to_dict(),

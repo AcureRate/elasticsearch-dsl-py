@@ -2,18 +2,65 @@
 
 import os
 
-from elasticsearch.helpers.test import get_test_client, SkipTest
-from elasticsearch.helpers import bulk
+from elasticsearch.helpers.test import SkipTest
+# from elasticsearch.helpers import bulk
+from elasticsearch_dsl.helpers import bulk
+from elasticsearch_async import AsyncElasticsearch
+from elasticsearch import Elasticsearch
 
-from pytest import fixture, yield_fixture, skip
-from mock import Mock
-
+from pytest import fixture, yield_fixture, skip, mark
+from async_mock import MagicMock
 from .test_integration.test_data import DATA, create_git_index
+
+
+class AsyncMock(MagicMock):
+    async def __call__(self, *args, **kwargs):
+        return super(AsyncMock, self).__call__(*args, **kwargs)
+
 
 _client_loaded = False
 
+
+# the following method was async.
+# meaning that calling it:   x= get_test_client(...)  returns a coroutine that should be awaited.
+#
+
+async def get_test_client(nowait=False, **kwargs):
+    from time import sleep
+
+    # construct kwargs from the environment
+    kw = {'timeout': 30}
+    if 'TEST_ES_CONNECTION' in os.environ:
+        from elasticsearch_async import connection
+
+        kw['connection_class'] = getattr(connection, os.environ['TEST_ES_CONNECTION'])
+
+    kw.update(kwargs)
+    client = AsyncElasticsearch([os.environ.get('TEST_ES_SERVER', {})], **kw)
+
+    # wait for yellow status
+    for _ in range(1 if nowait else 100):
+        try:
+            await client.cluster.health(wait_for_status='yellow')
+            return client
+        except ConnectionError:
+            sleep(.1)
+    else:
+        # timeout
+        raise SkipTest("Elasticsearch failed to start.")
+
+
+@yield_fixture(scope='session')
+def event_loop(request):
+    """Create an instance of the default event loop for each test case."""
+    import asyncio
+    loop = asyncio.get_event_loop_policy().new_event_loop()
+    yield loop
+    loop.close()
+
+
 @fixture(scope='session')
-def client(request):
+async def client(request):
     # inner import to avoid throwing off coverage
     from elasticsearch_dsl.connections import connections
     # hack to workaround pytest not caching skip on fixtures (#467)
@@ -23,118 +70,131 @@ def client(request):
 
     _client_loaded = True
     try:
-        client = get_test_client(nowait='WAIT_FOR_ES' not in os.environ)
+        client = await get_test_client(nowait='WAIT_FOR_ES' not in os.environ)
         connections.add_connection('default', client)
         return client
     except SkipTest:
         skip()
 
+
 @yield_fixture
-def write_client(request, client):
+async def write_client(request, client):
     yield client
-    client.indices.delete('test-*', ignore=404)
-    client.indices.delete_template('test-template', ignore=404)
+    await client.indices.delete('test-*', ignore=404)
+    await client.indices.delete_template('test-template', ignore=404)
+
 
 @yield_fixture
 def mock_client(request):
     # inner import to avoid throwing off coverage
     from elasticsearch_dsl.connections import connections
-    client = Mock()
+    client = AsyncMock()
     client.search.return_value = dummy_response()
     connections.add_connection('mock', client)
     yield client
     connections._conn = {}
     connections._kwargs = {}
 
+
 @fixture(scope='session')
-def data_client(request, client):
+async def data_client(request, client, event_loop):
     # create mappings
-    create_git_index(client, 'git')
+    await create_git_index(client, 'git')
     # load data
-    bulk(client, DATA, raise_on_error=True, refresh=True)
+    await bulk(client, DATA, raise_on_error=True, refresh=True)
+
     # make sure we clean up after ourselves
-    request.addfinalizer(lambda: client.indices.delete('git'))
+    def finalizer():
+        async def afin():
+            await client.indices.delete('git')
+
+        event_loop.run_until_complete(afin())
+
+    request.addfinalizer(finalizer)
     return client
+
 
 @fixture
 def dummy_response():
     return {
-      "_shards": {
-        "failed": 0,
-        "successful": 10,
-        "total": 10
-      },
-      "hits": {
-        "hits": [
-          {
-            "_index": "test-index",
-            "_type": "company",
-            "_id": "elasticsearch",
-            "_score": 12.0,
+        "_shards": {
+            "failed": 0,
+            "successful": 10,
+            "total": 10
+        },
+        "hits": {
+            "hits": [
+                {
+                    "_index": "test-index",
+                    "_type": "company",
+                    "_id": "elasticsearch",
+                    "_score": 12.0,
 
-            "_source": {
-              "city": "Amsterdam",
-              "name": "Elasticsearch",
-            },
-          },
-          {
-            "_index": "test-index",
-            "_type": "employee",
-            "_id": "42",
-            "_score": 11.123,
-            "_parent": "elasticsearch",
+                    "_source": {
+                        "city": "Amsterdam",
+                        "name": "Elasticsearch",
+                    },
+                },
+                {
+                    "_index": "test-index",
+                    "_type": "employee",
+                    "_id": "42",
+                    "_score": 11.123,
+                    "_parent": "elasticsearch",
 
-            "_source": {
-              "name": {
-                "first": "Shay",
-                "last": "Bannon"
-              },
-              "lang": "java",
-              "twitter": "kimchy",
-            },
-          },
-          {
-            "_index": "test-index",
-            "_type": "employee",
-            "_id": "47",
-            "_score": 1,
-            "_parent": "elasticsearch",
+                    "_source": {
+                        "name": {
+                            "first": "Shay",
+                            "last": "Bannon"
+                        },
+                        "lang": "java",
+                        "twitter": "kimchy",
+                    },
+                },
+                {
+                    "_index": "test-index",
+                    "_type": "employee",
+                    "_id": "47",
+                    "_score": 1,
+                    "_parent": "elasticsearch",
 
-            "_source": {
-              "name": {
-                "first": "Honza",
-                "last": "Král"
-              },
-              "lang": "python",
-              "twitter": "honzakral",
-            },
-          },
-          {
-            "_index": "test-index",
-            "_type": "employee",
-            "_id": "53",
-            "_score": 16.0,
-            "_parent": "elasticsearch",
-          },
-        ],
-        "max_score": 12.0,
-        "total": 123
-      },
-      "timed_out": False,
-      "took": 123
+                    "_source": {
+                        "name": {
+                            "first": "Honza",
+                            "last": "Král"
+                        },
+                        "lang": "python",
+                        "twitter": "honzakral",
+                    },
+                },
+                {
+                    "_index": "test-index",
+                    "_type": "employee",
+                    "_id": "53",
+                    "_score": 16.0,
+                    "_parent": "elasticsearch",
+                },
+            ],
+            "max_score": 12.0,
+            "total": 123
+        },
+        "timed_out": False,
+        "took": 123
     }
+
 
 @fixture
 def aggs_search():
     from elasticsearch_dsl import Search
     s = Search(index='git', doc_type='commits')
-    s.aggs\
-        .bucket('popular_files', 'terms', field='files', size=2)\
-        .metric('line_stats', 'stats', field='stats.lines')\
+    s.aggs \
+        .bucket('popular_files', 'terms', field='files', size=2) \
+        .metric('line_stats', 'stats', field='stats.lines') \
         .metric('top_commits', 'top_hits', size=2, _source=["stats.*", "committed_date"])
     s.aggs.bucket('per_month', 'date_histogram', interval='month', field='info.committed_date')
     s.aggs.metric('sum_lines', 'sum', field='stats.lines')
     return s
+
 
 @fixture
 def aggs_data():

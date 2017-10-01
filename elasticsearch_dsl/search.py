@@ -3,7 +3,8 @@ import collections
 
 from six import iteritems, string_types
 
-from elasticsearch.helpers import scan
+# from elasticsearch.helpers import scan
+from .helpers import scan
 from elasticsearch.exceptions import TransportError
 
 from .query import Q, EMPTY_QUERY, Bool
@@ -12,12 +13,14 @@ from .utils import DslBase, AttrDict
 from .response import Response, Hit, SuggestResponse
 from .connections import connections
 
+
 class QueryProxy(object):
     """
     Simple proxy around DSL objects (queries) that can be called
     (to add query/post_filter) and also allows attribute access which is proxied to
     the wrapped query.
     """
+
     def __init__(self, search, attr_name):
         self._search = search
         self._proxied = EMPTY_QUERY
@@ -25,6 +28,7 @@ class QueryProxy(object):
 
     def __nonzero__(self):
         return self._proxied != EMPTY_QUERY
+
     __bool__ = __nonzero__
 
     def __call__(self, *args, **kwargs):
@@ -58,6 +62,7 @@ class ProxyDescriptor(object):
         s.query = Q(...)
 
     """
+
     def __init__(self, name):
         self._attr_name = '_%s_proxy' % name
 
@@ -71,12 +76,14 @@ class ProxyDescriptor(object):
 
 class AggsProxy(AggBase, DslBase):
     name = 'aggs'
+
     def __init__(self, search):
         self._base = self._search = search
         self._params = {'aggs': {}}
 
     def to_dict(self):
         return super(AggsProxy, self).to_dict().get('aggs', {})
+
 
 class Request(object):
     def __init__(self, using='default', index=None, doc_type=None, extra=None):
@@ -256,11 +263,11 @@ class Search(Request):
     def exclude(self, *args, **kwargs):
         return self.query(Bool(filter=[~Q(*args, **kwargs)]))
 
-    def __iter__(self):
+    async def __aiter__(self):
         """
         Iterate over the hits.
         """
-        return iter(self.execute())
+        return iter(await self.execute())
 
     def __getitem__(self, n):
         """
@@ -593,7 +600,7 @@ class Search(Request):
         d.update(kwargs)
         return d
 
-    def count(self):
+    async def count(self):
         """
         Return the number of hits matching the query and filters. Note that
         only the actual number is returned.
@@ -605,14 +612,14 @@ class Search(Request):
 
         d = self.to_dict(count=True)
         # TODO: failed shards detection
-        return es.count(
+        return (await es.count(
             index=self._index,
             doc_type=self._doc_type,
             body=d,
             **self._params
-        )['count']
+        ))['count']
 
-    def execute(self, ignore_cache=False):
+    async def execute(self, ignore_cache=False):
         """
         Execute the search and return an instance of ``Response`` wrapping all
         the data.
@@ -624,7 +631,7 @@ class Search(Request):
 
             self._response = self._response_class(
                 self,
-                es.search(
+                await es.search(
                     index=self._index,
                     doc_type=self._doc_type,
                     body=self.to_dict(),
@@ -633,33 +640,33 @@ class Search(Request):
             )
         return self._response
 
-    def execute_suggest(self):
+    async def execute_suggest(self):
         """
         Execute just the suggesters. Ignores all parts of the request that are
         not relevant, including ``query`` and ``doc_type``.
         """
         es = connections.get_connection(self._using)
         return SuggestResponse(
-            es.suggest(
+            await es.suggest(
                 index=self._index,
                 body=self._suggest,
                 **self._params
             )
         )
 
-    def scan(self):
+    async def scan(self):
         """
         Turn the search into a scan search and return a generator that will
         iterate over all the documents matching the query.
 
-        Use ``params`` method to specify any additional arguments you with to
+        Use ``params`` method to specify any additional arguments you wish to
         pass to the underlying ``scan`` helper from ``elasticsearch-py`` -
         https://elasticsearch-py.readthedocs.io/en/master/helpers.html#elasticsearch.helpers.scan
 
         """
         es = connections.get_connection(self._using)
 
-        for hit in scan(
+        async for hit in scan(
                 es,
                 query=self.to_dict(),
                 index=self._index,
@@ -670,7 +677,7 @@ class Search(Request):
             callback = getattr(callback, 'from_es', callback)
             yield callback(hit)
 
-    def delete(self):
+    async def delete(self):
         """
         delete() executes the query by delegating to delete_by_query()
         """
@@ -678,7 +685,7 @@ class Search(Request):
         es = connections.get_connection(self._using)
 
         return AttrDict(
-            es.delete_by_query(
+            await es.delete_by_query(
                 index=self._index,
                 body=self.to_dict(),
                 doc_type=self._doc_type,
@@ -692,6 +699,7 @@ class MultiSearch(Request):
     Combine multiple :class:`~elasticsearch_dsl.Search` objects into a single
     request.
     """
+
     def __init__(self, **kwargs):
         super(MultiSearch, self).__init__(**kwargs)
         self._searches = []
@@ -734,14 +742,14 @@ class MultiSearch(Request):
 
         return out
 
-    def execute(self, ignore_cache=False, raise_on_error=True):
+    async def execute(self, ignore_cache=False, raise_on_error=True):
         """
         Execute the multi search request and return a list of search results.
         """
         if ignore_cache or not hasattr(self, '_response'):
             es = connections.get_connection(self._using)
 
-            responses = es.msearch(
+            responses = await es.msearch(
                 index=self._index,
                 doc_type=self._doc_type,
                 body=self.to_dict(),

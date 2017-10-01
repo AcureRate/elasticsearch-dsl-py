@@ -1,7 +1,10 @@
 from __future__ import unicode_literals
 
+import pytest
+pytestmark = pytest.mark.asyncio
+
 # FIXME: copy-pasted from elasticsearch-py/example/load.py
-def create_git_index(client, index):
+async def create_git_index(client, index):
     # we will use user on several places
     user_mapping = {
       'properties': {
@@ -14,7 +17,7 @@ def create_git_index(client, index):
       }
     }
 
-    client.indices.create(
+    await client.indices.create(
         index=index,
         body={
           'settings': {

@@ -36,9 +36,9 @@ class Mapping(object):
         return 'Mapping(%r)' % self.doc_type
 
     @classmethod
-    def from_es(cls, index, doc_type, using='default'):
+    async def from_es(cls, index, doc_type, using='default'):
         m = cls(doc_type)
-        m.update_from_es(index, using)
+        await m.update_from_es(index, using)
         return m
 
     def resolve_field(self, field_path):
@@ -73,14 +73,14 @@ class Mapping(object):
 
         return analysis
 
-    def save(self, index, using='default'):
+    async def save(self, index, using='default'):
         index = Index(index, using=using)
         index.mapping(self)
-        return index.save()
+        return await index.save()
 
-    def update_from_es(self, index, using='default'):
+    async def update_from_es(self, index, using='default'):
         es = connections.get_connection(using)
-        raw = es.indices.get_mapping(index=index, doc_type=self.doc_type)
+        raw = await es.indices.get_mapping(index=index, doc_type=self.doc_type)
         _, raw = raw.popitem()
         raw = raw['mappings'][self.doc_type]
 

@@ -14,10 +14,11 @@ f.close()
 install_requires = [
     'six',
     'python-dateutil',
-    'elasticsearch>=5.0.0,<6.0.0'
+    'elasticsearch-async>=5.2.0,<6.0.0'
 ]
 tests_require = [
     "mock",
+    "async_mock",
     "pytest",
     "pytest-cov",
     "pytz"

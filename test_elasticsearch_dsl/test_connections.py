@@ -1,10 +1,14 @@
-from elasticsearch import Elasticsearch
+from elasticsearch_async import AsyncElasticsearch
 
 from elasticsearch_dsl import connections, serializer
 
+import pytest
+pytestmark = pytest.mark.asyncio
+
+
 from pytest import raises
 
-def test_default_connection_is_returned_by_default():
+async def test_default_connection_is_returned_by_default():
     c = connections.Connections()
 
     con, con2 = object(), object()
@@ -14,20 +18,20 @@ def test_default_connection_is_returned_by_default():
 
     assert c.get_connection() is con
 
-def test_get_connection_created_connection_if_needed():
+async def test_get_connection_created_connection_if_needed():
     c = connections.Connections()
     c.configure(default={'hosts': ['es.com']}, local={'hosts': ['localhost']})
 
     default = c.get_connection()
     local = c.get_connection('local')
 
-    assert isinstance(default, Elasticsearch)
-    assert isinstance(local, Elasticsearch)
+    assert isinstance(default, AsyncElasticsearch)
+    assert isinstance(local, AsyncElasticsearch)
 
     assert [{'host': 'es.com'}] == default.transport.hosts
     assert [{'host': 'localhost'}] == local.transport.hosts
 
-def test_configure_preserves_unchanged_connections():
+async def test_configure_preserves_unchanged_connections():
     c = connections.Connections()
 
     c.configure(default={'hosts': ['es.com']}, local={'hosts': ['localhost']})
@@ -41,7 +45,7 @@ def test_configure_preserves_unchanged_connections():
     assert new_local is local
     assert new_default is not default
 
-def test_remove_connection_removes_both_conn_and_conf():
+async def test_remove_connection_removes_both_conn_and_conf():
     c = connections.Connections()
 
     c.configure(default={'hosts': ['es.com']}, local={'hosts': ['localhost']})
@@ -55,14 +59,14 @@ def test_remove_connection_removes_both_conn_and_conf():
         c.get_connection('local2')
         c.get_connection('default')
 
-def test_create_connection_constructs_client():
+async def test_create_connection_constructs_client():
     c = connections.Connections()
     c.create_connection('testing', hosts=['es.com'])
 
     con = c.get_connection('testing')
     assert [{'host': 'es.com'}] == con.transport.hosts
 
-def test_create_connection_adds_our_serializer():
+async def test_create_connection_adds_our_serializer():
     c = connections.Connections()
     c.create_connection('testing', hosts=['es.com'])
 

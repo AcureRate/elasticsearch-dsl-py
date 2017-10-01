@@ -1,4 +1,6 @@
 from datetime import datetime
+import pytest
+pytestmark = pytest.mark.asyncio
 
 from elasticsearch_dsl import DocType, Boolean, Date
 from elasticsearch_dsl.faceted_search import FacetedSearch, TermsFacet, DateHistogramFacet, RangeFacet
@@ -25,25 +27,24 @@ class RepoSearch(FacetedSearch):
       'created': DateHistogramFacet(field='created_at', interval='month')
     }
 
-def test_datehistogram_facet(data_client):
+async def test_datehistogram_facet(data_client):
     rs = RepoSearch()
-    r = rs.execute()
+    r = await rs.execute()
 
     assert r.hits.total == 1
     assert [(datetime(2014, 3, 1, 0, 0), 1, False)] == r.facets.created
 
-def test_boolean_facet(data_client):
+async def test_boolean_facet(data_client):
     rs = RepoSearch()
-    r = rs.execute()
-
+    r = await rs.execute()
     assert r.hits.total == 1
     assert [(True, 1, False)] == r.facets.public
 
 
-def test_empty_search_finds_everything(data_client):
+async def test_empty_search_finds_everything(data_client):
     cs = CommitSearch()
 
-    r = cs.execute()
+    r = await cs.execute()
 
     assert r.hits.total == 52
     assert [
@@ -85,10 +86,10 @@ def test_empty_search_finds_everything(data_client):
         ('better', 19, False)
     ] == r.facets.deletions
 
-def test_term_filters_are_shown_as_selected_and_data_is_filtered(data_client):
+async def test_term_filters_are_shown_as_selected_and_data_is_filtered(data_client):
     cs = CommitSearch(filters={'files': 'test_elasticsearch_dsl'})
 
-    r = cs.execute()
+    r = await cs.execute()
 
     assert 35 == r.hits.total
     assert [
@@ -128,16 +129,18 @@ def test_term_filters_are_shown_as_selected_and_data_is_filtered(data_client):
         ('better', 13, False)
     ] == r.facets.deletions
 
-def test_range_filters_are_shown_as_selected_and_data_is_filtered(data_client):
+async def test_range_filters_are_shown_as_selected_and_data_is_filtered(data_client):
     cs = CommitSearch(filters={'deletions': 'better'})
 
-    r = cs.execute()
+    r = await cs.execute()
 
     assert 19 == r.hits.total
 
-def test_pagination(data_client):
+async def test_pagination(data_client):
     cs = CommitSearch()
     cs = cs[0:20]
 
-    assert 52 == cs.count()
-    assert 20 == len(cs.execute())
+    cnt = await cs.count()
+    assert 52 == cnt
+    ex = await cs.execute()
+    assert 20 == len(ex)

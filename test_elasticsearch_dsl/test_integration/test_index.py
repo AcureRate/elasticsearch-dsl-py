@@ -1,4 +1,6 @@
 from elasticsearch_dsl import DocType, Index, Text, Keyword, Date, analysis, IndexTemplate
+import pytest
+pytestmark = pytest.mark.asyncio
 
 class Post(DocType):
     title = Text(analyzer=analysis.analyzer('my_analyzer', tokenizer='keyword'))
@@ -8,15 +10,15 @@ class User(DocType):
     username = Keyword()
     joined_date = Date()
 
-def test_index_template_works(write_client):
+async def test_index_template_works(write_client):
     it = IndexTemplate('test-template', 'test-*')
     it.doc_type(Post)
     it.doc_type(User)
     it.settings(number_of_replicas=0, number_of_shards=1)
-    it.save()
+    await it.save()
 
     i = Index('test-blog')
-    i.create()
+    await i.create()
 
     assert {
         'test-blog': {
@@ -35,19 +37,19 @@ def test_index_template_works(write_client):
                 },
             }
         }
-    } == write_client.indices.get_mapping(index='test-blog')
+    } == await write_client.indices.get_mapping(index='test-blog')
 
 
-def test_index_exists(write_client):
-    assert Index('git').exists()
-    assert not Index('not-there').exists()
+async def test_index_exists(write_client):
+    assert await Index('git').exists()
+    assert not await Index('not-there').exists()
 
-def test_index_can_be_created_with_settings_and_mappings(write_client):
+async def test_index_can_be_created_with_settings_and_mappings(write_client):
     i = Index('test-blog', using=write_client)
     i.doc_type(Post)
     i.doc_type(User)
     i.settings(number_of_replicas=0, number_of_shards=1)
-    i.create()
+    await i.create()
 
     assert {
         'test-blog': {
@@ -66,9 +68,9 @@ def test_index_can_be_created_with_settings_and_mappings(write_client):
                 },
             }
         }
-    } == write_client.indices.get_mapping(index='test-blog')
+    } == await write_client.indices.get_mapping(index='test-blog')
 
-    settings = write_client.indices.get_settings(index='test-blog')
+    settings = await write_client.indices.get_settings(index='test-blog')
     assert settings['test-blog']['settings']['index']['number_of_replicas'] == '0'
     assert settings['test-blog']['settings']['index']['number_of_shards'] == '1'
     assert settings['test-blog']['settings']['index']['analysis'] == {
@@ -80,17 +82,17 @@ def test_index_can_be_created_with_settings_and_mappings(write_client):
         }
     }
 
-def test_delete(write_client):
-    write_client.indices.create(
+async def test_delete(write_client):
+    await write_client.indices.create(
         index='test-index',
         body={'settings': {'number_of_replicas': 0, 'number_of_shards': 1}}
     )
 
     i = Index('test-index', using=write_client)
-    i.delete()
-    assert not write_client.indices.exists(index='test-index')
+    await i.delete()
+    assert not await write_client.indices.exists(index='test-index')
 
-def test_multiple_indices_with_same_doc_type_work(write_client):
+async def test_multiple_indices_with_same_doc_type_work(write_client):
     i1 = Index('test-index-1', using=write_client)
     i2 = Index('test-index-2', using=write_client)
 
@@ -99,7 +101,7 @@ def test_multiple_indices_with_same_doc_type_work(write_client):
         i.create()
 
     for i in ('test-index-1', 'test-index-2'):
-        settings = write_client.indices.get_settings(index=i)
+        settings = await write_client.indices.get_settings(index=i)
         assert settings[i]['settings']['index']['analysis'] == {
             'analyzer': {
                 'my_analyzer': {

@@ -1,12 +1,16 @@
 # coding: utf-8
 from elasticsearch_dsl import analysis
 
-def test_analyzer_serializes_as_name():
+import pytest
+pytestmark = pytest.mark.asyncio
+
+
+async def test_analyzer_serializes_as_name():
     a = analysis.analyzer('my_analyzer')
 
     assert 'my_analyzer' == a.to_dict()
 
-def test_analyzer_has_definition():
+async def test_analyzer_has_definition():
     a = analysis.CustomAnalyzer(
         'my_analyzer',
         tokenizer='keyword',
@@ -19,12 +23,12 @@ def test_analyzer_has_definition():
         'filter': ["lowercase"],
     } == a.get_definition()
 
-def test_normalizer_serializes_as_name():
+async def test_normalizer_serializes_as_name():
     n = analysis.normalizer('my_normalizer')
 
     assert 'my_normalizer' == n.to_dict()
 
-def test_normalizer_has_definition():
+async def test_normalizer_has_definition():
     n = analysis.CustomNormalizer(
         'my_normalizer',
         filter=['lowercase', 'asciifolding'],
@@ -37,7 +41,7 @@ def test_normalizer_has_definition():
         'char_filter': ['quote']
     } == n.get_definition()
 
-def test_tokenizer():
+async def test_tokenizer():
     t = analysis.tokenizer('trigram', 'nGram', min_gram=3, max_gram=3)
 
     assert t.to_dict() == 'trigram'
@@ -47,7 +51,7 @@ def test_tokenizer():
         'max_gram': 3
     } == t.get_definition()
 
-def test_custom_analyzer_can_collect_custom_items():
+async def test_custom_analyzer_can_collect_custom_items():
     trigram = analysis.tokenizer('trigram', 'nGram', min_gram=3, max_gram=3)
     my_stop = analysis.token_filter('my_stop', 'stop', stopwords=['a', 'b'])
     umlauts = analysis.char_filter('umlauts', 'pattern_replace', mappings=['ü=>ue'])

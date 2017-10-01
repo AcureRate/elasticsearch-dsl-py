@@ -1,5 +1,8 @@
 from datetime import datetime
 
+import pytest
+pytestmark = pytest.mark.asyncio
+
 from elasticsearch_dsl.faceted_search import (FacetedSearch, TermsFacet,
                                               DateHistogramFacet)
 
@@ -14,7 +17,7 @@ class BlogSearch(FacetedSearch):
     }
 
 
-def test_query_is_created_properly():
+async def test_query_is_created_properly():
     bs = BlogSearch('python search')
     s = bs.build_search()
 
@@ -40,7 +43,7 @@ def test_query_is_created_properly():
         'highlight': {'fields': {'body': {}, 'title': {}}}
     } == s.to_dict()
 
-def test_query_is_created_properly_with_sort_tuple():
+async def test_query_is_created_properly_with_sort_tuple():
     bs = BlogSearch('python search', sort=('category', '-title'))
     s = bs.build_search()
 
@@ -67,13 +70,13 @@ def test_query_is_created_properly_with_sort_tuple():
         'sort': ['category', {'title': {'order': 'desc'}}]
     } == s.to_dict()
 
-def test_sort_string_backwards_compat():
+async def test_sort_string_backwards_compat():
     bs_old = BlogSearch('python search', sort='-title').build_search().to_dict()
     bs_new = BlogSearch('python search', sort=['-title']).build_search().to_dict()
     assert bs_old == bs_new
     assert [{'title': {'order': 'desc'}}] == bs_new['sort']
 
-def test_filter_is_applied_to_search_but_not_relevant_facet():
+async def test_filter_is_applied_to_search_but_not_relevant_facet():
     bs = BlogSearch('python search', filters={'category': 'elastic'})
     s = bs.build_search()
 
@@ -97,7 +100,7 @@ def test_filter_is_applied_to_search_but_not_relevant_facet():
         'highlight': {'fields': {'body': {}, 'title': {}}}
     } == s.to_dict()
 
-def test_filters_are_applied_to_search_ant_relevant_facets():
+async def test_filters_are_applied_to_search_ant_relevant_facets():
     bs = BlogSearch('python search', filters={'category': 'elastic', 'tags': ['python', 'django']})
     s = bs.build_search()
 
@@ -136,7 +139,7 @@ def test_filters_are_applied_to_search_ant_relevant_facets():
     } == d
 
 
-def test_date_histogram_facet_with_1970_01_01_date():
+async def test_date_histogram_facet_with_1970_01_01_date():
     dhf = DateHistogramFacet()
     assert dhf.get_value({'key': None}) == datetime(1970, 1, 1, 0, 0)
     assert dhf.get_value({'key': 0}) == datetime(1970, 1, 1, 0, 0)

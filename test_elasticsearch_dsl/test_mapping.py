@@ -1,9 +1,12 @@
 import json
 
+import pytest
+pytestmark = pytest.mark.asyncio
+
 from elasticsearch_dsl import mapping, Text, Keyword, Nested, analysis
 
 
-def test_mapping_can_has_fields():
+async def test_mapping_can_has_fields():
     m = mapping.Mapping('article')
     m.field('name', 'text').field('tags', 'keyword')
 
@@ -16,7 +19,7 @@ def test_mapping_can_has_fields():
         }
     } == m.to_dict()
 
-def test_mapping_update_is_recursive():
+async def test_mapping_update_is_recursive():
     m1 = mapping.Mapping('article')
     m1.field('title', 'text')
     m1.field('author', 'object')
@@ -54,7 +57,7 @@ def test_mapping_update_is_recursive():
         }
     } == m1.to_dict()
 
-def test_properties_can_iterate_over_all_the_fields():
+async def test_properties_can_iterate_over_all_the_fields():
     m = mapping.Mapping('testing')
     m.field('f1', 'text', test_attr='f1', fields={'f2': Keyword(test_attr='f2')})
     m.field('f3', Nested(test_attr='f3', properties={
@@ -62,7 +65,7 @@ def test_properties_can_iterate_over_all_the_fields():
 
     assert set(('f1', 'f2', 'f3', 'f4')) == set(f.test_attr for f in m.properties._collect_fields())
 
-def test_mapping_can_collect_all_analyzers_and_normalizers():
+async def test_mapping_can_collect_all_analyzers_and_normalizers():
     a1 = analysis.analyzer('my_analyzer1',
         tokenizer='keyword',
         filter=['lowercase', analysis.token_filter('my_filter1', 'stop', stopwords=['a', 'b'])],
@@ -120,7 +123,7 @@ def test_mapping_can_collect_all_analyzers_and_normalizers():
     assert json.loads(json.dumps(m.to_dict())) == m.to_dict()
 
 
-def test_mapping_can_collect_multiple_analyzers():
+async def test_mapping_can_collect_multiple_analyzers():
     a1 = analysis.analyzer(
         'my_analyzer1',
         tokenizer='keyword',
@@ -154,7 +157,7 @@ def test_mapping_can_collect_multiple_analyzers():
        'tokenizer': {'trigram': {'max_gram': 3, 'min_gram': 3, 'type': 'nGram'}}
     } == m._collect_analysis()
 
-def test_even_non_custom_analyzers_can_have_params():
+async def test_even_non_custom_analyzers_can_have_params():
     a1 = analysis.analyzer('whitespace', type='pattern', pattern=r'\\s+')
     m = mapping.Mapping('some_type')
     m.field('title', 'text', analyzer=a1)
@@ -168,7 +171,7 @@ def test_even_non_custom_analyzers_can_have_params():
             }
     } == m._collect_analysis()
 
-def test_resolve_field_can_resolve_multifields():
+async def test_resolve_field_can_resolve_multifields():
     m = mapping.Mapping('m')
     m.field('title', 'text', fields={'keyword': Keyword()})
 

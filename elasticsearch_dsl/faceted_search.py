@@ -342,10 +342,10 @@ class FacetedSearch(object):
         self.aggregate(s)
         return s
 
-    def execute(self):
+    async def execute(self):
         """
         Execute the search and return the response.
         """
-        r = self._s.execute()
+        r = await self._s.execute()
         r._faceted_search = self
         return r
