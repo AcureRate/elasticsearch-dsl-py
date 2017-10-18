@@ -8,7 +8,7 @@ from elasticsearch_dsl.helpers import bulk
 from elasticsearch_async import AsyncElasticsearch
 from elasticsearch import Elasticsearch
 
-from pytest import fixture, yield_fixture, skip, mark
+from pytest import fixture, yield_fixture, skip
 from async_mock import MagicMock
 from .test_integration.test_data import DATA, create_git_index
 
